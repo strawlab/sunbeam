@@ -20,6 +20,12 @@ Lab](https://jupyter.org) with package selection using
 Download the latest release for your platform from
 https://github.com/strawlab/sunbeam/releases
 
+## Screenshots
+
+[![Screenshot of Main Window](./docs/sunbeam-screenshot-small.png)](./docs/sunbeam-screenshot.png)
+[![Screenshot of Process Output](./docs/sunbeam-process-output-small.png)](./docs/sunbeam-process-output.png)
+[![Screenshot of Configuration Preview](./docs/sunbeam-config-preview-small.png)](./docs/sunbeam-config-preview.png)
+
 ## License
 
 Copyright 2025 Andrew D. Straw
