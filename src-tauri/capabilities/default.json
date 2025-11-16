@@ -1,0 +1,26 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "shell:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/uv",
+          "cmd": "ignored-because-this-is-a-sidecar",
+          "args": true,
+          "sidecar": true
+        }
+      ]
+    },
+    "dialog:default",
+    "store:default"
+  ]
+}
