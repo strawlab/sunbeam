@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sun, Package, Play, FolderOpen, Check, Copy, Loader2, ChevronDown, ChevronUp, ExternalLink, Eye, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 
 import { invoke, Channel } from "@tauri-apps/api/core";
@@ -102,6 +102,14 @@ function LaunchModal({
   const [showCopiedTooltip, setShowCopiedTooltip] = useState(false);
   const [showShutdownConfirm, setShowShutdownConfirm] = useState(false);
   const [processExited, setProcessExited] = useState(false);
+  const outputEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll output to bottom when new lines are added
+  useEffect(() => {
+    if (showOutput && outputEndRef.current) {
+      outputEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [outputLines, showOutput]);
 
   // Poll process state every 200ms
   useEffect(() => {
@@ -232,6 +240,7 @@ function LaunchModal({
                         )}
                       </div>
                     ))}
+                    <div ref={outputEndRef} />
                   </div>
                 </div>
               )}
@@ -297,18 +306,21 @@ function LaunchModal({
                 {showOutput && (
                   <div className="p-4 bg-gray-900 font-mono text-xs max-h-64 overflow-y-auto">
                     {outputLines.length > 0 ? (
-                      outputLines.map((line, idx) => (
-                        <div key={idx}>
-                          {line.type === 'args' ? (
-                            <div className="text-blue-400 mb-1">
-                              $ uv {line.content}
-                            </div>
-                          ) : (
-                            <pre className={`whitespace-pre-wrap break-all ${line.type === 'stdout' ? 'text-gray-300' : 'text-red-300'
-                              }`}>{line.content}</pre>
-                          )}
-                        </div>
-                      ))
+                      <>
+                        {outputLines.map((line, idx) => (
+                          <div key={idx}>
+                            {line.type === 'args' ? (
+                              <div className="text-blue-400 mb-1">
+                                $ uv {line.content}
+                              </div>
+                            ) : (
+                              <pre className={`whitespace-pre-wrap break-all ${line.type === 'stdout' ? 'text-gray-300' : 'text-red-300'
+                                }`}>{line.content}</pre>
+                            )}
+                          </div>
+                        ))}
+                        <div ref={outputEndRef} />
+                      </>
                     ) : (
                       <div className="text-gray-500">(no output yet)</div>
                     )}
