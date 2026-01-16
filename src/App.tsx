@@ -90,6 +90,7 @@ function LaunchModal({
   outputLines,
   processId,
   onClose,
+  onShowPreview,
 }: {
   isOpen: boolean;
   serverUrl: string | null;
@@ -97,6 +98,7 @@ function LaunchModal({
   outputLines: Array<{ type: 'args' | 'stdout' | 'stderr', content: string }>;
   processId: number | null;
   onClose: () => void;
+  onShowPreview: () => void;
 }) {
   const [showOutput, setShowOutput] = useState(true);
   const [showCopiedTooltip, setShowCopiedTooltip] = useState(false);
@@ -224,8 +226,16 @@ function LaunchModal({
               {/* Show initial output while starting */}
               {outputLines.length > 0 && (
                 <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
-                  <div className="px-4 py-3 bg-gray-50">
+                  <div className="px-4 py-3 bg-gray-50 flex items-center justify-between">
                     <span className="font-semibold text-gray-700">Startup Output</span>
+                    <button
+                      onClick={onShowPreview}
+                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition flex items-center gap-2"
+                      title="View configuration preview"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Show Configuration
+                    </button>
                   </div>
                   <div className="p-4 bg-gray-900 font-mono text-xs max-h-64 overflow-y-auto">
                     {outputLines.map((line, idx) => (
@@ -291,20 +301,30 @@ function LaunchModal({
 
               {/* Combined Output section */}
               <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setShowOutput(!showOutput)}
-                  className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition flex items-center justify-between"
-                  title={showOutput ? "Hide process output" : "Show process output (stdout and stderr)"}
-                >
-                  <span className="font-semibold text-gray-700">Process Output</span>
-                  {showOutput ? (
-                    <ChevronUp className="w-5 h-5 text-gray-600" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-gray-600" />
-                  )}
-                </button>
+                <div className="px-4 py-3 bg-gray-50 flex items-center justify-between">
+                  <button
+                    onClick={() => setShowOutput(!showOutput)}
+                    className="flex items-center gap-2 hover:text-amber-600 transition"
+                    title={showOutput ? "Hide process output" : "Show process output (stdout and stderr)"}
+                  >
+                    <span className="font-semibold text-gray-700">Process Output</span>
+                    {showOutput ? (
+                      <ChevronUp className="w-5 h-5 text-gray-600" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-600" />
+                    )}
+                  </button>
+                  <button
+                    onClick={onShowPreview}
+                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition flex items-center gap-2"
+                    title="View configuration preview"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Show Configuration
+                  </button>
+                </div>
                 {showOutput && (
-                  <div className="p-4 bg-gray-900 font-mono text-xs max-h-64 overflow-y-auto">
+                  <div className="p-4 bg-gray-900 font-mono text-xs max-h-40 overflow-y-auto">
                     {outputLines.length > 0 ? (
                       <>
                         {outputLines.map((line, idx) => (
@@ -361,13 +381,11 @@ function PreviewModal({
   workingDir,
   pyprojectContent,
   onClose,
-  onLaunch,
 }: {
   isOpen: boolean;
   workingDir: string;
   pyprojectContent: string;
   onClose: () => void;
-  onLaunch: () => void;
 }) {
   const [uvVersion, setUvVersion] = useState<string>('');
   const [setupCommand, setSetupCommand] = useState<string>('');
@@ -403,7 +421,7 @@ function PreviewModal({
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6">
-          <h2 className="text-2xl font-bold text-white">Configuration Preview</h2>
+          <h2 className="text-2xl font-bold text-white">UV Configuration</h2>
         </div>
 
         {/* Content */}
@@ -469,24 +487,13 @@ function PreviewModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t-2 border-gray-200 p-6 flex justify-end gap-3">
+        <div className="border-t-2 border-gray-200 p-6 flex justify-end">
           <button
             onClick={onClose}
             className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold transition"
             title="Close preview"
           >
             Close
-          </button>
-          <button
-            onClick={() => {
-              onLaunch();
-              onClose();
-            }}
-            className="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold transition flex items-center gap-2"
-            title="Launch Jupyter Lab"
-          >
-            <Play className="w-5 h-5" />
-            Launch Jupyter Lab
           </button>
         </div>
       </div>
@@ -740,6 +747,7 @@ function App() {
         outputLines={launchOutputLines}
         processId={launchProcessId}
         onClose={() => setShowLaunchModal(false)}
+        onShowPreview={() => setShowPreviewModal(true)}
       />
 
       {/* Preview Modal */}
@@ -748,7 +756,6 @@ function App() {
         workingDir={workingDir}
         pyprojectContent={pyproject_contents(allPackages, pythonVersion)}
         onClose={() => setShowPreviewModal(false)}
-        onLaunch={handleLaunch}
       />
 
       {/* Header */}
