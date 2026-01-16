@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use eyre::OptionExt;
+use eyre::{OptionExt, WrapErr};
 use serde::{Deserialize, Serialize};
 use tauri::{ipc::Channel, Manager, State};
 use tauri_plugin_shell::ShellExt;
@@ -8,8 +8,8 @@ use tauri_plugin_store::StoreExt;
 
 type IdType = u16;
 
-#[derive(Default)]
 struct AppState {
+    uv_info: UvInfo,
     next_id: IdType,
     children: std::collections::HashMap<IdType, SpawnedProcessState>,
 }
@@ -190,19 +190,41 @@ impl SpaceJoin for Vec<String> {
     }
 }
 
-#[tauri::command]
-fn uv_version_setup_launch(app: tauri::AppHandle) -> (String, String, String) {
-    let sidecar_command = app.shell().sidecar("uv").unwrap().args(&["--version"]);
+#[derive(Clone)]
+struct UvInfo {
+    version: String,
+    setup: String,
+    launch: String,
+}
+
+fn get_uv_info(app: &tauri::AppHandle) -> eyre::Result<UvInfo> {
+    let sidecar_uv = app.shell().sidecar("uv")?;
+    let sidecar_command = sidecar_uv.args(&["--version"]);
     let mut std_command: std::process::Command = sidecar_command.into();
-    let output = std_command.output().unwrap();
+    let output = std_command
+        .output()
+        .with_context(|| format!("executing sidecar uv command: {std_command:?}"))?; // If sidecar uv is missing, this will panic.
     if output.status.success() {
         let version = String::from_utf8(output.stdout).unwrap();
         let setup = "uv ".to_owned() + &setup_venv_args("<project_dir>").space_join();
         let launch = "uv ".to_owned() + &run_jlab_args("<project_dir>").space_join();
-        (version, setup, launch)
+        Ok(UvInfo {
+            version,
+            setup,
+            launch,
+        })
     } else {
-        panic!("Failed to get uv version");
+        Err(eyre::eyre!("Failed to get uv version"))
     }
+}
+
+#[tauri::command]
+fn uv_version_setup_launch(state: State<'_, Mutex<AppState>>) -> (String, String, String) {
+    let uv_info = {
+        let state = state.lock().unwrap();
+        state.uv_info.clone()
+    };
+    (uv_info.version, uv_info.setup, uv_info.launch)
 }
 
 #[tauri::command]
@@ -820,7 +842,12 @@ pub fn run() {
                 tracing::debug!("stored to store: workingDir: {value}");
             }
 
-            app.manage(Mutex::new(AppState::default()));
+            let uv_info = get_uv_info(app.handle()).unwrap();
+            app.manage(Mutex::new(AppState {
+                uv_info,
+                next_id: Default::default(),
+                children: Default::default(),
+            }));
             Ok(())
         })
         .plugin(tauri_plugin_dialog::init())
