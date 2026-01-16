@@ -1052,8 +1052,8 @@ function App() {
       {/* Footer Info */}
       <div className="max-w-4xl mx-auto mt-6 text-center">
         <p className="text-sm text-gray-600">
-          Project management by <span onClick={() => openUrl('https://docs.astral.sh/uv/')} className="font-semibold text-amber-700 cursor-pointer hover:underline">uv</span>, launcher by <span onClick={() => openUrl('https://tauri.app')} className="font-semibold text-amber-700 cursor-pointer hover:underline">Tauri</span>, and Jupyter Lab by <span onClick={() => openUrl('https://jupyter.org')} className="font-semibold text-amber-700 cursor-pointer hover:underline">jupyter</span>.
-          Source at <span onClick={() => openUrl('https://github.com/strawlab/sunbeam')} className="font-semibold text-amber-700 cursor-pointer hover:underline">github.com/strawlab/sunbeam</span>.
+          Project management by <span onClick={() => openUrl('https://docs.astral.sh/uv/')} className="font-semibold text-amber-700 cursor-pointer hover:underline" title="https://docs.astral.sh/uv/">uv</span>, launcher by <span onClick={() => openUrl('https://tauri.app')} className="font-semibold text-amber-700 cursor-pointer hover:underline" title="https://tauri.app">Tauri</span>, and Jupyter Lab by <span onClick={() => openUrl('https://jupyter.org')} className="font-semibold text-amber-700 cursor-pointer hover:underline" title="https://jupyter.org">jupyter</span>.
+          Source at <span onClick={() => openUrl('https://github.com/strawlab/sunbeam')} className="font-semibold text-amber-700 cursor-pointer hover:underline" title="https://github.com/strawlab/sunbeam">github.com/strawlab/sunbeam</span>.
         </p>
       </div>
     </div>
