@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Sun, Package, Play, FolderOpen, Check, Copy, Loader2, ChevronDown, ChevronUp, ExternalLink, Eye, Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { Sun, Package, Play, FolderOpen, Check, Copy, Loader2, ChevronDown, ChevronUp, ExternalLink, Eye, Upload, AlertCircle, CheckCircle, X } from 'lucide-react';
 
 import { invoke, Channel } from "@tauri-apps/api/core";
 import "./App.css";
@@ -406,6 +406,20 @@ function PreviewModal({
     }
   }, [isOpen]);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const copyToClipboard = async (text: string) => {
@@ -420,8 +434,13 @@ function PreviewModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6">
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white">UV Configuration</h2>
+          <X
+            className="w-6 h-6 text-white hover:opacity-70 transition cursor-pointer"
+            strokeWidth={2.5}
+            onClick={onClose}
+          />
         </div>
 
         {/* Content */}
