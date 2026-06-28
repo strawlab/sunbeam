@@ -837,7 +837,9 @@ fn run_jlab_args(project_dir: &str, port: &str, token: &str) -> Vec<String> {
         "jupyter".to_string(),
         "lab".to_string(),
         format!("--ServerApp.port={port}"),
-        format!("--ServerApp.token={token}"),
+        // Token moved to IdentityProvider in Jupyter Server 2.0; ServerApp.token
+        // is deprecated.
+        format!("--IdentityProvider.token={token}"),
     ]
 }
 
