@@ -206,7 +206,11 @@ fn get_uv_info(app: &tauri::AppHandle) -> eyre::Result<UvInfo> {
         .with_context(|| format!("executing sidecar uv command: {std_command:?}"))?; // If sidecar uv is missing, this will panic.
     if output.status.success() {
         let version = String::from_utf8(output.stdout).unwrap();
-        let setup = "uv ".to_owned() + &setup_venv_args("<project_dir>").space_join();
+        let setup = format!(
+            "uv {} && uv {}",
+            sync_args("<project_dir>").space_join(),
+            report_python_args("<project_dir>").space_join(),
+        );
         let launch =
             "uv ".to_owned() + &run_jlab_args("<project_dir>", "<port>", "<token>").space_join();
         Ok(UvInfo {
@@ -563,6 +567,37 @@ fn spawn_process(
     Ok(child)
 }
 
+/// Run a setup uv command to completion, piping its stdout/stderr to the
+/// frontend as initial output. Bails if the command exits unsuccessfully.
+fn run_initial_uv_step(
+    app: &tauri::AppHandle,
+    cwd: &camino::Utf8Path,
+    args: Vec<String>,
+    id: IdType,
+    channel: &Channel<SpawnedProcessEvent>,
+) -> eyre::Result<()> {
+    let sidecar_command = app.shell().sidecar("uv")?.current_dir(cwd).args(&args);
+    let mut child = spawn_process(sidecar_command, true)?;
+
+    channel
+        .send(SpawnedProcessEvent {
+            id,
+            kind: SpawnedProcessEventKind::LaunchedProcess { args },
+        })
+        .unwrap();
+
+    let stdout = child.stdout().take().unwrap();
+    spawn_sender(true, stdout, true, id, channel.clone());
+
+    let stderr = child.stderr().take().unwrap();
+    spawn_sender(true, stderr, false, id, channel.clone());
+
+    if !child.wait()?.success() {
+        eyre::bail!("uv setup step failed");
+    }
+    Ok(())
+}
+
 /// Spawn jupyter using normal rust error handling.
 ///
 /// This function runs in a newly created thread.
@@ -586,34 +621,19 @@ fn uv_mainloop(
     let pyproject_path = temp_dir_path.join("pyproject.toml");
     std::fs::write(&pyproject_path, pyproject_config)?;
 
-    // First launch of uv to setup the virtual environment.
-    tracing::info!("spawning uv in working dir: {cwd}");
-    let args = setup_venv_args(temp_dir_path.as_str());
-    let sidecar_command = app.shell().sidecar("uv")?.current_dir(&cwd).args(&args);
-    // TODO: in the future, pipe stdout and stderr to frontend here too.
-    let mut child = spawn_process(sidecar_command, true)?;
-
-    channel
-        .send(SpawnedProcessEvent {
-            id,
-            kind: SpawnedProcessEventKind::LaunchedProcess {
-                args: args.into_iter().collect(),
-            },
-        })
-        .unwrap();
-
-    let stdout = child.stdout().take().unwrap();
-    spawn_sender(true, stdout, true, id, channel.clone());
-
-    let stderr = child.stderr().take().unwrap();
-    spawn_sender(true, stderr, false, id, channel.clone());
-
-    let exit_status = child.wait()?;
-    if exit_status.success() {
-        tracing::info!("uv setup completed successfully");
-    } else {
-        eyre::bail!("uv setup failed");
-    }
+    // Set up the ephemeral project: first `uv sync` to materialize the virtual
+    // environment, then run the interpreter once to confirm it executes and to
+    // report its path/version to the UI.
+    tracing::info!("setting up uv environment in working dir: {cwd}");
+    run_initial_uv_step(&app, &cwd, sync_args(temp_dir_path.as_str()), id, &channel)?;
+    run_initial_uv_step(
+        &app,
+        &cwd,
+        report_python_args(temp_dir_path.as_str()),
+        id,
+        &channel,
+    )?;
+    tracing::info!("uv setup completed successfully");
 
     // Spawn uv to run jupyter lab. We choose the port and token ourselves and
     // pass them to Jupyter, rather than launching Jupyter and then discovering
@@ -780,7 +800,20 @@ fn uv_mainloop(
     Ok(())
 }
 
-fn setup_venv_args(project_dir: &str) -> Vec<String> {
+/// `uv sync` resolves the dependencies and materializes the virtual environment
+/// for the ephemeral project. Since the generated pyproject.toml has no
+/// [build-system], uv treats it as a virtual (non-package) project and only
+/// installs the dependencies.
+fn sync_args(project_dir: &str) -> Vec<String> {
+    ["sync", "--no-config", "--project", project_dir]
+        .into_iter()
+        .map(Into::into)
+        .collect()
+}
+
+/// Run the project interpreter once to confirm it actually executes and to
+/// report its path and version to the UI.
+fn report_python_args(project_dir: &str) -> Vec<String> {
     [
         "run",
         "--no-config",
