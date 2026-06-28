@@ -199,7 +199,7 @@ struct UvInfo {
 
 fn get_uv_info(app: &tauri::AppHandle) -> eyre::Result<UvInfo> {
     let sidecar_uv = app.shell().sidecar("uv")?;
-    let sidecar_command = sidecar_uv.args(&["--version"]);
+    let sidecar_command = sidecar_uv.args(["--version"]);
     let mut std_command: std::process::Command = sidecar_command.into();
     let output = std_command
         .output()
@@ -232,7 +232,7 @@ fn get_cwd(app: tauri::AppHandle) -> String {
     let store = app.store("store.json").unwrap();
     if let Some(value) = store.get("workingDir") {
         tracing::debug!("loaded from store: workingDir: {value}");
-        return value.as_str().unwrap().to_string();
+        value.as_str().unwrap().to_string()
     } else {
         panic!("workingDir not found in store");
     }
@@ -319,12 +319,12 @@ fn parse_pyproject_toml(content: String) -> Result<ParsedPyproject, String> {
         let name = name_version[0].trim().to_string();
 
         // Extract version if present
-        let version = if dep_str.contains(|c| c == '=' || c == '>' || c == '<' || c == '~') {
+        let version = if dep_str.contains(['=', '>', '<', '~']) {
             // Find the version part after the operator
             let version_part = dep_str
-                .split_once(|c| c == '=' || c == '>' || c == '<' || c == '~')
+                .split_once(['=', '>', '<', '~'])
                 .and_then(|(_, v)| {
-                    let v = v.trim_start_matches(|c| c == '=' || c == '>' || c == '<' || c == '~');
+                    let v = v.trim_start_matches(['=', '>', '<', '~']);
                     let v = v.trim();
                     if v.is_empty() {
                         None
@@ -472,7 +472,7 @@ fn get_jupyter_servers(
         .split(|&b| b == b'\n')
         .filter(|line| !line.is_empty())
         .map(|line| {
-            let val: serde_json::Value = serde_json::from_slice(&line)?;
+            let val: serde_json::Value = serde_json::from_slice(line)?;
             let val_obj = val.as_object().ok_or_eyre("value is not JSON object")?;
             let url = val_obj
                 .get("url")
@@ -640,7 +640,7 @@ fn uv_mainloop(
         .send(SpawnedProcessEvent {
             id,
             kind: SpawnedProcessEventKind::LaunchedProcess {
-                args: args.into_iter().map(Into::into).collect(),
+                args: args.into_iter().collect(),
             },
         })
         .unwrap();
@@ -681,7 +681,7 @@ fn uv_mainloop(
         .send(SpawnedProcessEvent {
             id,
             kind: SpawnedProcessEventKind::LaunchedProcess {
-                args: args.into_iter().map(Into::into).collect(),
+                args: args.into_iter().collect(),
             },
         })
         .unwrap();
@@ -715,7 +715,7 @@ fn uv_mainloop(
         let new_servers_set = new_servers.keys().collect::<std::collections::HashSet<_>>();
 
         let diff: Vec<&&String> = new_servers_set.difference(&orig_servers_set).collect();
-        if diff.len() == 0 {
+        if diff.is_empty() {
             // No new servers yet, keep waiting.
             std::thread::sleep(std::time::Duration::from_millis(100));
             continue;
@@ -868,46 +868,43 @@ pub fn run() {
         .expect("error while building tauri application");
 
     // This never returns but calls std::process::exit() directly.
-    app.run(|app_handle, event| match event {
-        tauri::RunEvent::ExitRequested { .. } => {
-            // So this doesn't work on macOS when the user presses Cmd-Q. See
-            // https://github.com/tauri-apps/tauri/issues/9198 and
-            // https://github.com/tauri-apps/tauri/issues/12978 .
-            tracing::info!("Exit requested, cleaning up child processes...");
-            let state = app_handle.state::<Mutex<AppState>>();
-            let mut state = state.lock().unwrap();
-            for (id, child) in state.children.drain() {
-                let join_handle = match child {
-                    SpawnedProcessState::TokenAssigned => {
-                        todo!();
+    app.run(|app_handle, event| if let tauri::RunEvent::ExitRequested { .. } = event {
+        // So this doesn't work on macOS when the user presses Cmd-Q. See
+        // https://github.com/tauri-apps/tauri/issues/9198 and
+        // https://github.com/tauri-apps/tauri/issues/12978 .
+        tracing::info!("Exit requested, cleaning up child processes...");
+        let state = app_handle.state::<Mutex<AppState>>();
+        let mut state = state.lock().unwrap();
+        for (id, child) in state.children.drain() {
+            let join_handle = match child {
+                SpawnedProcessState::TokenAssigned => {
+                    todo!();
+                }
+                SpawnedProcessState::ThreadSpawned { join_handle } => {
+                    if true {
+                        todo!("how to kill not-yet-started process?");
                     }
-                    SpawnedProcessState::ThreadSpawned { join_handle } => {
-                        if true {
-                            todo!("how to kill not-yet-started process?");
-                        }
-                        join_handle
-                        // join_handle.abort();
-                        // tracing::info!("Killed spawning thread for process group {id}");
+                    join_handle
+                    // join_handle.abort();
+                    // tracing::info!("Killed spawning thread for process group {id}");
+                }
+                SpawnedProcessState::Running {
+                    mut child,
+                    join_handle,
+                } => {
+                    let pid = child.id();
+                    tracing::info!("Killing process group {id} (pid: {pid})");
+                    if let Err(e) = child.kill() {
+                        tracing::error!("Failed to kill process group {id} (pid: {pid}): {e}");
                     }
-                    SpawnedProcessState::Running {
-                        mut child,
-                        join_handle,
-                    } => {
-                        let pid = child.id();
-                        tracing::info!("Killing process group {id} (pid: {pid})");
-                        if let Err(e) = child.kill() {
-                            tracing::error!("Failed to kill process group {id} (pid: {pid}): {e}");
-                        }
-                        join_handle
-                    }
-                    SpawnedProcessState::Exited { .. } => {
-                        tracing::info!("Process group {id} has already exited");
-                        continue;
-                    }
-                };
-                join_handle.join().unwrap().unwrap();
-            }
+                    join_handle
+                }
+                SpawnedProcessState::Exited { .. } => {
+                    tracing::info!("Process group {id} has already exited");
+                    continue;
+                }
+            };
+            join_handle.join().unwrap().unwrap();
         }
-        _ => {}
     });
 }
