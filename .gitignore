@@ -22,3 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+uv-aarch64-apple-darwin.tar.gz
+uv-x86_64-apple-darwin.tar.gz
