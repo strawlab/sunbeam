@@ -34,3 +34,4 @@ tempfile = "3.23.0"
 camino = "1.2.1"
 tauri-plugin-store = "2"
 toml = "0.8"
+uuid = { version = "1", features = ["v4"] }

@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use eyre::{OptionExt, WrapErr};
+use eyre::WrapErr;
 use serde::{Deserialize, Serialize};
 use tauri::{ipc::Channel, Manager, State};
 use tauri_plugin_shell::ShellExt;
@@ -207,7 +207,8 @@ fn get_uv_info(app: &tauri::AppHandle) -> eyre::Result<UvInfo> {
     if output.status.success() {
         let version = String::from_utf8(output.stdout).unwrap();
         let setup = "uv ".to_owned() + &setup_venv_args("<project_dir>").space_join();
-        let launch = "uv ".to_owned() + &run_jlab_args("<project_dir>").space_join();
+        let launch =
+            "uv ".to_owned() + &run_jlab_args("<project_dir>", "<port>", "<token>").space_join();
         Ok(UvInfo {
             version,
             setup,
@@ -439,57 +440,13 @@ fn kill_process_group(state: State<'_, Mutex<AppState>>, id: IdType) {
     // tracing::info!("Process group {id} has exited");
 }
 
-/// Get list of running jupyter servers
-///
-/// Runs `uv tool run jupyter server list --json` and parses the output.
-fn get_jupyter_servers(
-    uv: tauri_plugin_shell::process::Command,
-    project_dir: &camino::Utf8Path,
-) -> eyre::Result<std::collections::HashMap<String, String>> {
-    // Get list of currently running jupyter servers before spawning uv, so that
-    // we can detect the new one later. (Note that this could have a race condition
-    // jupyter is started or stopped for other reasons in the meantime, but this is
-    // unlikely enough to be acceptable for now.)
-    let list_servers_args = &[
-        "run",
-        "--project",
-        project_dir.as_str(),
-        "jupyter",
-        "server",
-        "list",
-        "--json",
-    ];
-    let list_servers_cmd = uv.args(list_servers_args);
-    let mut std_list_servers_cmd: std::process::Command = list_servers_cmd.into();
-    let list_servers_cmd_child = std_list_servers_cmd.spawn()?;
-    let x = list_servers_cmd_child.wait_with_output()?;
-    if !x.status.success() {
-        eyre::bail!("Failed to list Jupyter servers");
-    }
-
-    let lines: Vec<(String, String)> = x
-        .stdout
-        .split(|&b| b == b'\n')
-        .filter(|line| !line.is_empty())
-        .map(|line| {
-            let val: serde_json::Value = serde_json::from_slice(line)?;
-            let val_obj = val.as_object().ok_or_eyre("value is not JSON object")?;
-            let url = val_obj
-                .get("url")
-                .ok_or_eyre("'url' is missing")?
-                .as_str()
-                .ok_or_eyre("url is not a string")?;
-            let token = val_obj
-                .get("token")
-                .ok_or_eyre("'token' is missing")?
-                .as_str()
-                .ok_or_eyre("token is not a string")?;
-            Ok::<_, eyre::Report>((url.to_string(), token.to_string()))
-        })
-        .collect::<eyre::Result<Vec<(String, String)>>>()?;
-    let lines = lines.into_iter().collect();
-
-    Ok(lines)
+/// Pick a free TCP port on localhost by binding to port 0 and reading back the
+/// assigned port. The listener is closed immediately, so there is a small race
+/// window before Jupyter binds the port, but this is acceptable in practice.
+fn pick_free_port() -> eyre::Result<u16> {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
+    let port = listener.local_addr()?.port();
+    Ok(port)
 }
 
 trait ReadExt: std::io::Read + Send + 'static {}
@@ -658,21 +615,18 @@ fn uv_mainloop(
         eyre::bail!("uv setup failed");
     }
 
-    // Get original list of jupyter servers running.
+    // Spawn uv to run jupyter lab. We choose the port and token ourselves and
+    // pass them to Jupyter, rather than launching Jupyter and then discovering
+    // them via `jupyter server list`. This avoids the inherent race in diffing
+    // the server list and means we know the server URL before it even starts.
 
-    let orig_servers = get_jupyter_servers(app.shell().sidecar("uv")?, &temp_dir_path)?;
-    let orig_servers_set = orig_servers
-        .keys()
-        .collect::<std::collections::HashSet<_>>();
-    for url in &orig_servers_set {
-        tracing::info!("Existing Jupyter server: {url}");
-    }
-
-    // Spawn uv to run jupyter lab.
+    let port = pick_free_port()?;
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    let server_url = format!("http://localhost:{port}/");
 
     tracing::info!("spawning uv in working dir: {cwd}");
 
-    let args = run_jlab_args(temp_dir_path.as_str());
+    let args = run_jlab_args(temp_dir_path.as_str(), &port.to_string(), &token);
     let sidecar_command = app.shell().sidecar("uv")?.current_dir(cwd).args(&args);
 
     let mut child = spawn_process(sidecar_command, true)?;
@@ -706,41 +660,69 @@ fn uv_mainloop(
     };
     tracing::info!("Spawned process group {id}");
 
-    // Wait for new jupyter server to appear.
-
-    let new_server_url: String;
-    let new_server_token: String;
+    // Wait for the jupyter server to start listening on the port we assigned.
+    // A successful TCP connection means the server is accepting connections.
+    // Guard against waiting forever: give up if jupyter exits before binding the
+    // port, if the process group is killed, or if a startup deadline elapses.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+    let state = app.state::<Mutex<AppState>>();
     loop {
-        let new_servers = get_jupyter_servers(app.shell().sidecar("uv")?, &temp_dir_path)?;
-        let new_servers_set = new_servers.keys().collect::<std::collections::HashSet<_>>();
-
-        let diff: Vec<&&String> = new_servers_set.difference(&orig_servers_set).collect();
-        if diff.is_empty() {
-            // No new servers yet, keep waiting.
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            continue;
-        }
-        if diff.len() != 1 {
-            panic!(
-                "Expected exactly one new Jupyter server, found {}",
-                diff.len()
-            );
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            break;
         }
 
-        new_server_url = diff[0].to_string();
-        new_server_token = new_servers
-            .get(&new_server_url)
-            .ok_or_eyre("Failed to get token")?
-            .to_string();
-        break;
+        let timed_out = std::time::Instant::now() >= deadline;
+        {
+            let mut state = state.lock().unwrap();
+            match state.children.get_mut(&id) {
+                Some(SpawnedProcessState::Running { child, .. }) => {
+                    // If jupyter exited before binding the port, report it and stop.
+                    if let Some(status) = child.try_wait()? {
+                        channel
+                            .send(SpawnedProcessEvent {
+                                id,
+                                kind: SpawnedProcessEventKind::Exited {
+                                    success: false,
+                                    exit_code: status.code(),
+                                },
+                            })
+                            .unwrap();
+                        eyre::bail!("jupyter exited (status: {status}) before its server started");
+                    }
+                    // Still running but out of time: kill it and report failure.
+                    if timed_out {
+                        if let Err(e) = child.start_kill() {
+                            tracing::error!("failed to kill timed-out jupyter process: {e}");
+                        }
+                        channel
+                            .send(SpawnedProcessEvent {
+                                id,
+                                kind: SpawnedProcessEventKind::Exited {
+                                    success: false,
+                                    exit_code: None,
+                                },
+                            })
+                            .unwrap();
+                        eyre::bail!("timed out waiting for jupyter server on port {port}");
+                    }
+                }
+                // The process group was killed or removed elsewhere; stop waiting.
+                _ => {
+                    tracing::info!("process group {id} no longer running, stop waiting");
+                    return Ok(());
+                }
+            }
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
     channel
         .send(SpawnedProcessEvent {
             id,
             kind: SpawnedProcessEventKind::ServerStarted {
-                url: new_server_url,
-                token: new_server_token,
+                url: server_url,
+                token,
             },
         })
         .unwrap();
@@ -801,6 +783,7 @@ fn uv_mainloop(
 fn setup_venv_args(project_dir: &str) -> Vec<String> {
     [
         "run",
+        "--no-config",
         "--project",
         project_dir,
         "python",
@@ -812,11 +795,17 @@ fn setup_venv_args(project_dir: &str) -> Vec<String> {
     .collect()
 }
 
-fn run_jlab_args(project_dir: &str) -> Vec<String> {
-    ["run", "--project", project_dir, "jupyter", "lab"]
-        .into_iter()
-        .map(Into::into)
-        .collect()
+fn run_jlab_args(project_dir: &str, port: &str, token: &str) -> Vec<String> {
+    vec![
+        "run".to_string(),
+        "--no-config".to_string(),
+        "--project".to_string(),
+        project_dir.to_string(),
+        "jupyter".to_string(),
+        "lab".to_string(),
+        format!("--ServerApp.port={port}"),
+        format!("--ServerApp.token={token}"),
+    ]
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
