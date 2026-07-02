@@ -20,6 +20,32 @@ Lab](https://jupyter.org) with package selection using
 Download the latest release for your platform from
 https://github.com/strawlab/sunbeam/releases
 
+### macOS: allowing an unsigned app to run
+
+Sunbeam is not yet code-signed or notarized by Apple. Because of this, macOS
+Gatekeeper places the downloaded app in "quarantine" and, when you first try to
+open it, shows a warning such as *"Sunbeam" is damaged and can't be opened* or
+*"Sunbeam" cannot be opened because the developer cannot be verified*. This is
+expected — the app is not actually damaged; macOS simply cannot verify an
+unsigned application.
+
+To run Sunbeam, remove the quarantine flag after copying the app to your
+`Applications` folder:
+
+1. Open the downloaded `.dmg` and drag **Sunbeam** into your `Applications`
+   folder.
+2. Open the **Terminal** app (in `Applications/Utilities`).
+3. Run the following command, entering your password if prompted:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Sunbeam.app
+   ```
+
+4. You can now open Sunbeam normally from `Applications` or Launchpad.
+
+If you copied Sunbeam somewhere other than `/Applications`, adjust the path in
+the command to point at the actual location of `Sunbeam.app`.
+
 ## Screenshots
 
 [![Screenshot of Main Window](./docs/sunbeam-screenshot-small.png)](./docs/sunbeam-screenshot.png)
