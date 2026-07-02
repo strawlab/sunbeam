@@ -74,6 +74,9 @@ npm install
 npm run tauri dev
 ```
 
+Agentic coding tools (AI coding assistants) were used to help develop this
+application.
+
 ## Icon
 
 The sun icon comes from [lucide](https://lucide.dev).
