@@ -83,7 +83,7 @@ jobs:
             args: ""
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download uv and create universal binary for macos
         if: runner.os == 'macOS'
         run: |
