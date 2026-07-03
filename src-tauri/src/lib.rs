@@ -858,10 +858,18 @@ pub fn run() {
             if let Some(value) = store.get("workingDir") {
                 tracing::debug!("loaded from store: workingDir: {value}");
             } else {
-                let cwd = std::env::current_dir().unwrap();
+                // Default to the user's home directory. When the app is launched
+                // from Finder on macOS the process cwd is `/`, which is a poor
+                // default, so we prefer the home dir and only fall back to the
+                // cwd if the home dir can't be determined.
+                let default_dir = app
+                    .path()
+                    .home_dir()
+                    .unwrap_or_else(|_| std::env::current_dir().unwrap());
                 let value =
-                    serde_json::to_value(cwd.into_os_string().into_string().unwrap()).unwrap();
-                tracing::debug!("loaded from env: workingDir: {value}");
+                    serde_json::to_value(default_dir.into_os_string().into_string().unwrap())
+                        .unwrap();
+                tracing::debug!("defaulting workingDir: {value}");
                 store.set("workingDir", serde_json::json!(value));
                 tracing::debug!("stored to store: workingDir: {value}");
             }
