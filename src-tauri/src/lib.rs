@@ -54,7 +54,7 @@ struct PackageConfig {
 impl Default for PackageConfig {
     fn default() -> Self {
         Self {
-            python_version: "3.13.5".to_string(),
+            python_version: "3.14.6".to_string(),
             packages: vec![
                 PackageInfo {
                     name: "numpy".to_string(),
@@ -62,7 +62,7 @@ impl Default for PackageConfig {
                     desc: Some("Fundamental package for scientific computing".to_string()),
                     url: Some("https://numpy.org/".to_string()),
                     source: "popular".to_string(),
-                    selected: false,
+                    selected: true,
                 },
                 PackageInfo {
                     name: "pandas".to_string(),
@@ -70,7 +70,7 @@ impl Default for PackageConfig {
                     desc: Some("Data analysis and manipulation tool".to_string()),
                     url: Some("https://pandas.pydata.org/".to_string()),
                     source: "popular".to_string(),
-                    selected: false,
+                    selected: true,
                 },
                 PackageInfo {
                     name: "matplotlib".to_string(),
@@ -78,7 +78,7 @@ impl Default for PackageConfig {
                     desc: Some("Comprehensive 2D plotting library".to_string()),
                     url: Some("https://matplotlib.org/".to_string()),
                     source: "popular".to_string(),
-                    selected: false,
+                    selected: true,
                 },
                 PackageInfo {
                     name: "scipy".to_string(),
@@ -86,7 +86,7 @@ impl Default for PackageConfig {
                     desc: Some("Scientific computing library".to_string()),
                     url: Some("https://scipy.org/".to_string()),
                     source: "popular".to_string(),
-                    selected: false,
+                    selected: true,
                 },
                 PackageInfo {
                     name: "scikit-learn".to_string(),
@@ -94,7 +94,7 @@ impl Default for PackageConfig {
                     desc: Some("Machine learning library".to_string()),
                     url: Some("https://scikit-learn.org/".to_string()),
                     source: "popular".to_string(),
-                    selected: false,
+                    selected: true,
                 },
                 PackageInfo {
                     name: "jupyterlab".to_string(),
@@ -110,7 +110,15 @@ impl Default for PackageConfig {
                     desc: Some("Statistical data visualization".to_string()),
                     url: Some("https://seaborn.pydata.org/".to_string()),
                     source: "popular".to_string(),
-                    selected: false,
+                    selected: true,
+                },
+                PackageInfo {
+                    name: "nbgrader".to_string(),
+                    version: None,
+                    desc: Some("Tool for creating and grading assignments in Jupyter".to_string()),
+                    url: Some("https://nbgrader.readthedocs.io/".to_string()),
+                    source: "popular".to_string(),
+                    selected: true,
                 },
             ],
         }

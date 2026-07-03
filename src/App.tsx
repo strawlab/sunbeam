@@ -521,7 +521,7 @@ function PreviewModal({
 }
 
 function App() {
-  const [pythonVersion, setPythonVersion] = useState("3.13.5");
+  const [pythonVersion, setPythonVersion] = useState("3.14.6");
   const [packages, setPackages] = useState<Map<string, PackageInfo>>(new Map());
   const [configLoaded, setConfigLoaded] = useState(false);
 
@@ -826,18 +826,18 @@ function App() {
               onBlur={(e) => {
                 const value = e.target.value;
                 // Validate on blur - must be complete version with or without specifier
-                // Accept: "3.13.5", "==3.13.5", ">=3.11", etc.
+                // Accept: "3.14.6", "==3.14.6", ">=3.11", etc.
                 if (!/^(==|>=|<=|~=|!=|>|<)?3\.\d+(\.\d+)?$/.test(value)) {
                   // Reset to default if invalid
-                  setPythonVersion("3.13.5");
+                  setPythonVersion("3.14.6");
                 }
               }}
-              placeholder="3.13.5 or >=3.11"
+              placeholder="3.14.6 or >=3.11"
               className="w-64 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none transition font-mono"
-              title="Python version with optional specifier (e.g., 3.13.5, >=3.11, ==3.13.5)"
+              title="Python version with optional specifier (e.g., 3.14.6, >=3.11, ==3.14.6)"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Must be Python 3.x or 3.x.y, optionally with specifier (e.g., &gt;=3.11, ==3.13.5)
+              Must be Python 3.x or 3.x.y, optionally with specifier (e.g., &gt;=3.11, ==3.14.6)
             </p>
           </div>
 
