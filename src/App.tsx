@@ -76,7 +76,7 @@ function pyproject_contents(packages: PackageInfo[], pythonVersion: string): str
   return `[project]
 name = "sunbeam-ephemeral-project"
 requires-python = "${versionSpec}"
-version = "0.1.0"
+version = "${__APP_VERSION__}"
 dependencies = [
 ${deps}
 ]
