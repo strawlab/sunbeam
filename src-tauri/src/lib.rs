@@ -851,12 +851,84 @@ fn run_jlab_args(project_dir: &str, port: &str, token: &str) -> Vec<String> {
     ]
 }
 
+/// Version of the on-disk `store.json` layout. Bump this whenever the store's
+/// schema changes in a way that old data can't be read as-is. On startup a
+/// store whose `schemaVersion` is missing or different is discarded and
+/// regenerated from defaults (see `migrate_store`).
+const STORE_SCHEMA_VERSION: u64 = 1;
+
+/// Bring the persisted store up to the current [`STORE_SCHEMA_VERSION`],
+/// preserving the user's existing data.
+///
+/// `default_working_dir` is the directory used to repair a legacy working
+/// directory of `/` (see the `workingDir` default in `run`).
+///
+/// Migrations are applied step by step so an old store is upgraded through
+/// each intermediate version. Add a new arm here whenever
+/// [`STORE_SCHEMA_VERSION`] is bumped.
+fn migrate_store<R: tauri::Runtime>(
+    store: &tauri_plugin_store::Store<R>,
+    default_working_dir: &str,
+) {
+    loop {
+        // Stores written before versioning existed have no `schemaVersion`.
+        let current = store.get("schemaVersion").and_then(|v| v.as_u64());
+        match current {
+            Some(v) if v == STORE_SCHEMA_VERSION => {
+                tracing::debug!("store schema up to date (v{STORE_SCHEMA_VERSION})");
+                return;
+            }
+            None => {
+                // Legacy (unversioned) -> v1. Keep all existing data, but fix a
+                // working directory of `/` (the old macOS-from-Finder default)
+                // by pointing it at the home directory instead.
+                let is_root_cwd = store
+                    .get("workingDir")
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .as_deref()
+                    == Some("/");
+                if is_root_cwd {
+                    tracing::info!("migrating legacy workingDir `/` -> {default_working_dir}");
+                    store.set("workingDir", serde_json::json!(default_working_dir));
+                }
+                store.set("schemaVersion", serde_json::json!(1u64));
+                tracing::debug!("migrated store schema: (none) -> v1");
+            }
+            Some(v) => {
+                // Newer than we understand (e.g. written by a future build).
+                // Leave the data untouched rather than risk corrupting it.
+                tracing::warn!(
+                    "store schema version {v} is newer than supported {STORE_SCHEMA_VERSION}; leaving as-is",
+                );
+                return;
+            }
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             let store = app.store("store.json")?;
+
+            // The default working directory is the user's home directory. When
+            // the app is launched from Finder on macOS the process cwd is `/`,
+            // which is a poor default, so we prefer the home dir and only fall
+            // back to the cwd if the home dir can't be determined. This is used
+            // both for a fresh store and to repair a legacy `/` during migration.
+            let default_working_dir = app
+                .path()
+                .home_dir()
+                .unwrap_or_else(|_| std::env::current_dir().unwrap())
+                .into_os_string()
+                .into_string()
+                .unwrap();
+
+            // Upgrade the store to the current schema version, preserving user
+            // data, before we read or populate any defaults below.
+            migrate_store(&store, &default_working_dir);
 
             // // Note that values must be serde_json::Value instances,
             // // otherwise, they will not be compatible with the JavaScript bindings.
@@ -866,20 +938,9 @@ pub fn run() {
             if let Some(value) = store.get("workingDir") {
                 tracing::debug!("loaded from store: workingDir: {value}");
             } else {
-                // Default to the user's home directory. When the app is launched
-                // from Finder on macOS the process cwd is `/`, which is a poor
-                // default, so we prefer the home dir and only fall back to the
-                // cwd if the home dir can't be determined.
-                let default_dir = app
-                    .path()
-                    .home_dir()
-                    .unwrap_or_else(|_| std::env::current_dir().unwrap());
-                let value =
-                    serde_json::to_value(default_dir.into_os_string().into_string().unwrap())
-                        .unwrap();
-                tracing::debug!("defaulting workingDir: {value}");
-                store.set("workingDir", serde_json::json!(value));
-                tracing::debug!("stored to store: workingDir: {value}");
+                tracing::debug!("defaulting workingDir: {default_working_dir}");
+                store.set("workingDir", serde_json::json!(default_working_dir));
+                tracing::debug!("stored to store: workingDir: {default_working_dir}");
             }
 
             let uv_info = get_uv_info(app.handle()).unwrap();
