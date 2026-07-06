@@ -1,6 +1,6 @@
 [package]
 name = "Sunbeam"
-version = "0.1.3"
+version = "0.1.4"
 description = "Simple Jupyter Lab"
 authors = ["Andrew Straw <strawman@astraw.com>"]
 edition = "2021"
