@@ -19,10 +19,11 @@ body = """
         {%- endfor %}
     {% endif %}
     ### 🔗 Downloads
-    - [macOS](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam_{{ version | trim_start_matches(pat="v") }}_universal.dmg)
-    - [Windows](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam_{{ version | trim_start_matches(pat="v") }}_x64_en-US.msi)
-    - [Linux .deb](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam_{{ version | trim_start_matches(pat="v") }}_amd64.deb)
-    - [Linux .rpm](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam-{{ version | trim_start_matches(pat="v") }}-1.x86_64.rpm)
+    - [Windows (.exe installer)](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam_{{ version | trim_start_matches(pat="v") }}_x64-setup.exe)
+    - [macOS (.dmg)](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam_{{ version | trim_start_matches(pat="v") }}_universal.dmg)
+    - [Linux (.AppImage)](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam_{{ version | trim_start_matches(pat="v") }}_amd64.AppImage)
+    - [Linux (.deb) — system-wide](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam_{{ version | trim_start_matches(pat="v") }}_amd64.deb)
+    - [Linux (.rpm) — system-wide](https://github.com/strawlab/sunbeam/releases/download/v{{ version | trim_start_matches(pat="v") }}/Sunbeam-{{ version | trim_start_matches(pat="v") }}-1.x86_64.rpm)
 
     ## Changelog
 {% else %}\
