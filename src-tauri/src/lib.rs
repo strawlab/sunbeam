@@ -12,6 +12,7 @@ struct AppState {
     uv_info: UvInfo,
     next_id: IdType,
     children: std::collections::HashMap<IdType, SpawnedProcessState>,
+    should_offer_tcc_reset: bool,
 }
 
 enum SpawnedProcessState {
@@ -456,6 +457,28 @@ fn kill_process_group(state: State<'_, Mutex<AppState>>, id: IdType) {
     // tracing::info!("Waiting for process group {id} to exit");
     // join_handle.join().unwrap().unwrap();
     // tracing::info!("Process group {id} has exited");
+}
+
+#[tauri::command]
+fn is_macos() -> bool {
+    cfg!(target_os = "macos")
+}
+
+#[tauri::command]
+fn get_should_offer_tcc_reset(state: State<'_, Mutex<AppState>>) -> bool {
+    state.lock().unwrap().should_offer_tcc_reset
+}
+
+#[tauri::command]
+fn run_tccutil_reset() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("/usr/bin/tccutil")
+            .args(["reset", "SystemPolicyAllFiles", "org.strawlab.Sunbeam"])
+            .output()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Pick a free TCP port on localhost by binding to port 0 and reading back the
@@ -942,6 +965,24 @@ pub fn run() {
             // data, before we read or populate any defaults below.
             migrate_store(&store, &default_working_dir);
 
+            // On macOS, detect whether this is a new build since the last run.
+            // If so, the frontend will offer to reset TCC permissions, which
+            // can accumulate stale grants when an unsigned app is updated.
+            #[cfg(target_os = "macos")]
+            let should_offer_tcc_reset = {
+                let current_version = app.package_info().version.to_string();
+                let last_seen = store
+                    .get("lastKnownBuildVersion")
+                    .and_then(|v| v.as_str().map(str::to_owned));
+                // Only offer on genuine updates — suppress on first install
+                // (no prior grants exist yet, so nothing useful to reset).
+                let offer = matches!(&last_seen, Some(v) if v != &current_version);
+                store.set("lastKnownBuildVersion", serde_json::json!(current_version));
+                offer
+            };
+            #[cfg(not(target_os = "macos"))]
+            let should_offer_tcc_reset = false;
+
             // // Note that values must be serde_json::Value instances,
             // // otherwise, they will not be compatible with the JavaScript bindings.
             // store.set("some-key", json!({ "value": 5 }));
@@ -960,6 +1001,7 @@ pub fn run() {
                 uv_info,
                 next_id: Default::default(),
                 children: Default::default(),
+                should_offer_tcc_reset,
             }));
             Ok(())
         })
@@ -975,7 +1017,10 @@ pub fn run() {
             parse_pyproject_toml,
             process_group_state,
             kill_process_group,
-            spawn_uv
+            spawn_uv,
+            is_macos,
+            get_should_offer_tcc_reset,
+            run_tccutil_reset,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

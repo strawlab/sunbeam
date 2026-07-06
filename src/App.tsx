@@ -3,7 +3,7 @@ import { Sun, Package, Play, FolderOpen, Check, Copy, Loader2, ChevronDown, Chev
 
 import { invoke, Channel } from "@tauri-apps/api/core";
 import "./App.css";
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, ask } from '@tauri-apps/plugin-dialog';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 type SpawnedProcessEvent = {
@@ -526,6 +526,7 @@ function App() {
   const [configLoaded, setConfigLoaded] = useState(false);
 
   const [workingDir, setWorkingDir] = useState("");
+  const [isMacos, setIsMacos] = useState(false);
 
   // Custom package input state
   const [customPackageName, setCustomPackageName] = useState("");
@@ -544,11 +545,13 @@ function App() {
   const [uploadMessage, setUploadMessage] = useState<string>('');
 
   useEffect(() => {
-    // Load initial configuration
+    // Load initial configuration and check for macOS TCC reset offer
     Promise.all([
       invoke<string>("get_cwd"),
-      invoke<PackageConfig>("get_package_config")
-    ]).then(([cwd, config]) => {
+      invoke<PackageConfig>("get_package_config"),
+      invoke<boolean>("is_macos"),
+      invoke<boolean>("get_should_offer_tcc_reset"),
+    ]).then(async ([cwd, config, macos, shouldReset]) => {
       setWorkingDir(cwd);
       setPythonVersion(config.pythonVersion);
 
@@ -566,6 +569,21 @@ function App() {
 
       setPackages(packageMap);
       setConfigLoaded(true);
+      setIsMacos(macos);
+
+      if (shouldReset) {
+        const confirmed = await ask(
+          "Sunbeam has been updated. Due to a known macOS behavior with unsigned apps, " +
+          "file permissions from the previous version may not carry over correctly, " +
+          "which can cause repeated permission prompts.\n\n" +
+          "Would you like Sunbeam to reset its file access now? macOS will ask you " +
+          "to re-grant access the next time it's needed.",
+          { title: "Reset file permissions?", okLabel: "Reset Now", cancelLabel: "Not Now" }
+        );
+        if (confirmed) {
+          await invoke("run_tccutil_reset");
+        }
+      }
     });
   }, []);
 
@@ -682,6 +700,16 @@ function App() {
       workingDir,
       channel
     });
+  };
+
+  const handleManualTccReset = async () => {
+    const confirmed = await ask(
+      "This will reset Sunbeam's file access permissions. macOS will ask you to re-grant access the next time it's needed.",
+      { title: "Reset file permissions?", okLabel: "Reset Now", cancelLabel: "Cancel" }
+    );
+    if (confirmed) {
+      await invoke("run_tccutil_reset");
+    }
   };
 
   const selectWorkingDir = async () => {
@@ -1065,6 +1093,20 @@ function App() {
               Launch Jupyter Lab
             </button>
           </div>
+
+          {/* macOS file permission reset — only shown on macOS */}
+          {isMacos && (
+            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs text-gray-400">Having repeated permission prompts?</p>
+              <button
+                onClick={handleManualTccReset}
+                className="text-xs text-gray-400 hover:text-amber-600 underline transition"
+                title="Reset Sunbeam's macOS file access permissions (Documents, Downloads)"
+              >
+                Reset macOS file permissions
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
