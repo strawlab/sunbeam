@@ -33,6 +33,11 @@
     ],
     "externalBin": [
       "binaries/uv"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    }
   }
 }
