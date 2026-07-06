@@ -209,6 +209,12 @@ fn get_uv_info(app: &tauri::AppHandle) -> eyre::Result<UvInfo> {
     let sidecar_uv = app.shell().sidecar("uv")?;
     let sidecar_command = sidecar_uv.args(["--version"]);
     let mut std_command: std::process::Command = sidecar_command.into();
+    // Don't flash a console window when spawning the console-subsystem `uv`.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std_command.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0);
+    }
     let output = std_command
         .output()
         .with_context(|| format!("executing sidecar uv command: {std_command:?}"))?; // If sidecar uv is missing, this will panic.
@@ -567,6 +573,12 @@ fn spawn_process(
     }
     #[cfg(windows)]
     {
+        // Suppress the console window Windows would otherwise allocate for the
+        // console-subsystem `uv` child. `CreationFlags` must be registered
+        // before `JobObject` so the latter preserves our flags (it ORs in
+        // CREATE_SUSPENDED) rather than overwriting them.
+        use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+        command.wrap(CreationFlags(CREATE_NO_WINDOW));
         command.wrap(JobObject);
     }
 

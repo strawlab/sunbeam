@@ -35,3 +35,10 @@ camino = "1.2.1"
 tauri-plugin-store = "2"
 toml = "0.9"
 uuid = { version = "1", features = ["v4"] }
+
+# On Windows, spawning the console-subsystem `uv` sidecar from our GUI app
+# allocates a console window. We suppress it with CREATE_NO_WINDOW; the version
+# is kept in lockstep with the `windows` crate that `process-wrap` depends on so
+# `CreationFlags(PROCESS_CREATION_FLAGS)` is the same type.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_System_Threading"] }
