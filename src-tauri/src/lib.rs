@@ -574,9 +574,15 @@ fn spawn_process(
     #[cfg(windows)]
     {
         // Suppress the console window Windows would otherwise allocate for the
-        // console-subsystem `uv` child. `CreationFlags` must be registered
-        // before `JobObject` so the latter preserves our flags (it ORs in
-        // CREATE_SUSPENDED) rather than overwriting them.
+        // console-subsystem `uv` child. With CREATE_NO_WINDOW, `uv` gets a
+        // console that has no window, and everything it launches (python,
+        // jupyter, kernels) inherits that instead of opening one of its own.
+        //
+        // `JobObject` has to set creation flags too (CREATE_SUSPENDED) and
+        // merges ours in by looking up the `CreationFlags` wrapper. That
+        // lookup always came back empty in process-wrap 9, so our flag was
+        // overwritten and the console window stayed open for as long as
+        // Jupyter ran. Fixed in process-wrap 10; do not downgrade.
         use windows::Win32::System::Threading::CREATE_NO_WINDOW;
         command.wrap(CreationFlags(CREATE_NO_WINDOW));
         command.wrap(JobObject);
