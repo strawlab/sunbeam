@@ -16,29 +16,29 @@ name = "sunbeam_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-opener = "2.7.3"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 
-process-wrap = { version = "9.0.0", features = ["std"] }
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3", features = ["fmt"] }
-tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
-eyre = "0.6.12"
-tempfile = "3.23.0"
-camino = "1.2.1"
-tauri-plugin-store = "2"
-toml = "0.9"
-uuid = { version = "1", features = ["v4"] }
+process-wrap = { version = "9.1.1", features = ["std"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["fmt"] }
+tauri-plugin-shell = "2.6.0"
+tauri-plugin-dialog = "2.8.4"
+eyre = "0.6.14"
+tempfile = "3.27.0"
+camino = "1.2.6"
+tauri-plugin-store = "2.5.1"
+toml = "0.9.12"
+uuid = { version = "1.29.2", features = ["v4"] }
 
 # On Windows, spawning the console-subsystem `uv` sidecar from our GUI app
 # allocates a console window. We suppress it with CREATE_NO_WINDOW; the version
 # is kept in lockstep with the `windows` crate that `process-wrap` depends on so
 # `CreationFlags(PROCESS_CREATION_FLAGS)` is the same type.
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Win32_System_Threading"] }
+windows = { version = "0.62.2", features = ["Win32_System_Threading"] }
