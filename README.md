@@ -86,7 +86,7 @@ The sun icon comes from [lucide](https://lucide.dev).
 ### Build universal `uv` binary on MacOS
 
 ```bash
-UV_VERSION=0.11.25
+UV_VERSION=0.13.8
 curl --remote-name --location https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-aarch64-apple-darwin.tar.gz
 curl --remote-name --location https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-x86_64-apple-darwin.tar.gz
 tar xf uv-aarch64-apple-darwin.tar.gz uv-aarch64-apple-darwin/uv
